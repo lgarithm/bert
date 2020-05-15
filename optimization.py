@@ -21,7 +21,7 @@ from __future__ import print_function
 import re
 import tensorflow as tf
 from kungfu._utils import map_maybe
-from kungfu.tensorflow.ops import all_reduce, group_all_reduce, peer_info
+from kungfu.tensorflow.ops import all_reduce, group_all_reduce, group_nccl_all_reduce, peer_info
 
 
 def create_optimizer(loss, init_lr, num_train_steps, num_warmup_steps, use_tpu, threshold):
@@ -69,7 +69,7 @@ def create_optimizer(loss, init_lr, num_train_steps, num_warmup_steps, use_tpu, 
       beta_2=0.999,
       epsilon=1e-6,
       exclude_from_weight_decay=["LayerNorm", "layer_norm", "bias"])
-  
+
   if use_tpu:
     optimizer = tf.contrib.tpu.CrossShardOptimizer(optimizer)
 
@@ -78,6 +78,9 @@ def create_optimizer(loss, init_lr, num_train_steps, num_warmup_steps, use_tpu, 
 
   # KungFu
   # add averaging over all gradient
+  use_nccl = True
+  if use_nccl:
+    group_all_reduce = group_nccl_all_reduce
   s_sgd = True
   _, num_workers = peer_info()
   np = tf.cast(num_workers, tf.float32)
