@@ -50,6 +50,8 @@ flags = tf.flags
 
 FLAGS = flags.FLAGS
 
+flags.DEFINE_string("tf_record_file", "/home/marcel/dataset/squad2/train.tf_record", ".")
+
 ## Required parameters
 flags.DEFINE_string(
     "bert_config_file", None,
@@ -1243,9 +1245,8 @@ def main(_):
     tf.logging.info("  Num steps = %d", num_train_steps)
     del train_examples
 
-    input_file = "/home/marcel/dataset/squad2/train.tf_record"
     train_input_fn = input_fn_builder(
-        input_file=input_file,
+        input_file=FLAGS.tf_record_file,
         seq_length=FLAGS.max_seq_length,
         is_training=True,
         drop_remainder=True)
@@ -1328,3 +1329,4 @@ if __name__ == "__main__":
   flags.mark_flag_as_required("bert_config_file")
   flags.mark_flag_as_required("output_dir")
   tf.app.run()
+  print('END app.run')
