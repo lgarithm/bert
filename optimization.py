@@ -85,6 +85,9 @@ def create_optimizer(loss, init_lr, num_train_steps, num_warmup_steps, use_tpu, 
   if use_nccl:
     print('using NCCL')
     group_all_reduce = group_nccl_all_reduce
+  else:
+    print('Not using NCCL')
+    from kungfu.tensorflow.ops import group_all_reduce
   s_sgd = True
   _, num_workers = peer_info()
   np = tf.cast(num_workers, tf.float32)
