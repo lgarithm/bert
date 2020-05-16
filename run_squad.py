@@ -36,7 +36,7 @@ from kungfu.tensorflow.initializer import BroadcastGlobalVariablesHook
 class StoppingHook(tf.train.SessionRunHook):
   def __init__(self):
     self._stop_step = 512
-    
+
   def begin(self):
     self._global_step = tf.train.get_or_create_global_step()
 
@@ -1255,7 +1255,7 @@ def main(_):
     hooks = [BroadcastGlobalVariablesHook()]
 
     estimator.train(input_fn=train_input_fn, max_steps=num_train_steps, hooks=hooks)
-    
+
     # KungFu
     # log end time
     tf.logging.info("Training end time " + str(datetime.now()))
@@ -1316,11 +1316,12 @@ def main(_):
     output_nbest_file = os.path.join(FLAGS.output_dir, "nbest_predictions.json")
     output_null_log_odds_file = os.path.join(FLAGS.output_dir, "null_odds.json")
 
+    print('BEGIN write_predictions')
     write_predictions(eval_examples, eval_features, all_results,
                       FLAGS.n_best_size, FLAGS.max_answer_length,
                       FLAGS.do_lower_case, output_prediction_file,
                       output_nbest_file, output_null_log_odds_file)
-
+    print('END write_predictions')
 
 if __name__ == "__main__":
   flags.mark_flag_as_required("vocab_file")
