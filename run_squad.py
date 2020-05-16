@@ -34,8 +34,8 @@ from kungfu.tensorflow.initializer import BroadcastGlobalVariablesHook
 
 
 class StoppingHook(tf.train.SessionRunHook):
-  def __init__(self):
-    self._stop_step = 512
+  def __init__(self, step=512):
+    self._stop_step = step
 
   def begin(self):
     self._global_step = tf.train.get_or_create_global_step()
@@ -691,13 +691,15 @@ def model_fn_builder(bert_config, init_checkpoint, learning_rate,
       # Marcel
       global_step = tf.train.get_or_create_global_step()
       logging_hook = tf.train.LoggingTensorHook({"global_step" : global_step}, every_n_iter=50)
+      # LG
+      stopping_hook = StoppingHook()
 
       output_spec = tf.contrib.tpu.TPUEstimatorSpec(
           mode=mode,
           loss=total_loss,
           train_op=train_op,
           scaffold_fn=scaffold_fn,
-          training_hooks = [logging_hook])
+          training_hooks = [logging_hook, stopping_hook])
     elif mode == tf.estimator.ModeKeys.PREDICT:
       predictions = {
           "unique_ids": unique_ids,
