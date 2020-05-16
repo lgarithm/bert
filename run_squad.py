@@ -51,6 +51,7 @@ flags = tf.flags
 FLAGS = flags.FLAGS
 
 flags.DEFINE_string("tf_record_file", "/home/marcel/dataset/squad2/train.tf_record", ".")
+flags.DEFINE_integer("stop_step", 1024, ".")
 
 ## Required parameters
 flags.DEFINE_string(
@@ -692,7 +693,7 @@ def model_fn_builder(bert_config, init_checkpoint, learning_rate,
       global_step = tf.train.get_or_create_global_step()
       logging_hook = tf.train.LoggingTensorHook({"global_step" : global_step}, every_n_iter=50)
       # LG
-      stopping_hook = StoppingHook()
+      stopping_hook = StoppingHook(FLAGS.stop_step)
 
       output_spec = tf.contrib.tpu.TPUEstimatorSpec(
           mode=mode,
