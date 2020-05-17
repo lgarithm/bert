@@ -31,7 +31,7 @@ from datetime import datetime
 import tensorflow as tf
 from kungfu import current_rank, current_cluster_size
 from kungfu.tensorflow.initializer import BroadcastGlobalVariablesHook
-
+from perf_hook import LogPerfHook
 
 class StoppingHook(tf.train.SessionRunHook):
   def __init__(self, step=512):
@@ -692,15 +692,17 @@ def model_fn_builder(bert_config, init_checkpoint, learning_rate,
       # Marcel
       global_step = tf.train.get_or_create_global_step()
       logging_hook = tf.train.LoggingTensorHook({"global_step" : global_step}, every_n_iter=50)
+
       # LG
       stopping_hook = StoppingHook(FLAGS.stop_step)
+      log_perf_hook = LogPerfHook(FLAGS.train_batch_size)
 
       output_spec = tf.contrib.tpu.TPUEstimatorSpec(
           mode=mode,
           loss=total_loss,
           train_op=train_op,
           scaffold_fn=scaffold_fn,
-          training_hooks = [logging_hook, stopping_hook])
+          training_hooks = [logging_hook, stopping_hook, log_perf_hook])
     elif mode == tf.estimator.ModeKeys.PREDICT:
       predictions = {
           "unique_ids": unique_ids,
@@ -1328,10 +1330,11 @@ def main(_):
                       FLAGS.do_lower_case, output_prediction_file,
                       output_nbest_file, output_null_log_odds_file)
     print('END write_predictions')
+  print('END main')
 
 if __name__ == "__main__":
   flags.mark_flag_as_required("vocab_file")
   flags.mark_flag_as_required("bert_config_file")
   flags.mark_flag_as_required("output_dir")
   tf.app.run()
-  print('END app.run')
+  # print('END app.run')
