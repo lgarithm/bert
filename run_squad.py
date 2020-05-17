@@ -1258,7 +1258,9 @@ def main(_):
     # add hook so that all nodes the training with equal variables
     hooks = [BroadcastGlobalVariablesHook()]
 
+    print('BEGIN estimator.train')
     estimator.train(input_fn=train_input_fn, max_steps=num_train_steps, hooks=hooks)
+    print('END estimator.train')
 
     # KungFu
     # log end time
