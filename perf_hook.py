@@ -33,6 +33,5 @@ class LogPerfHook(tf.train.SessionRunHook):
         step_per_sec = 1 / mean_duration
         sample_per_sec = step_per_sec * self._batch_size
         from kungfu import current_cluster_size
-        np = current_cluster_size()
         print('%.2f samples / sec, batch size: %d, cluster size %d' %
-              (sample_per_sec, self._batch_size, np))
+              (sample_per_sec, self._batch_size, current_cluster_size()))
