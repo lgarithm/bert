@@ -1180,6 +1180,15 @@ def main(_):
     tpu_cluster_resolver = tf.contrib.cluster_resolver.TPUClusterResolver(
         FLAGS.tpu_name, zone=FLAGS.tpu_zone, project=FLAGS.gcp_project)
 
+  if os.getenv('USE_HOROVOD'):
+    print('using HOROVOD')
+    import horovod.tensorflow as hvd
+    hvd.init()
+    config = tf.ConfigProto()
+    config.gpu_options.allow_growth = True
+    config.gpu_options.visible_device_list = str(hvd.local_rank())
+    print(config)
+
   is_per_host = tf.contrib.tpu.InputPipelineConfig.PER_HOST_V2
   run_config = tf.contrib.tpu.RunConfig(
       cluster=tpu_cluster_resolver,
@@ -1191,7 +1200,8 @@ def main(_):
       tpu_config=tf.contrib.tpu.TPUConfig(
           iterations_per_loop=FLAGS.iterations_per_loop,
           num_shards=FLAGS.num_tpu_cores,
-          per_host_input_for_training=is_per_host))
+          per_host_input_for_training=is_per_host),
+          session_config=config)
 
   train_examples = None
   num_train_steps = None

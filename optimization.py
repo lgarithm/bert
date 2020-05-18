@@ -85,6 +85,14 @@ def create_optimizer(loss, init_lr, num_train_steps, num_warmup_steps, use_tpu, 
   if use_nccl:
     print('using NCCL')
     group_all_reduce = group_nccl_all_reduce
+  elif os.getenv('USE_HOROVOD'):
+    print('using HOROVOD')
+    def group_all_reduce(ts):
+      import horovod.tensorflow as hvd
+      def hvd_all_reduce(t):
+        return hvd.allreduce(t, average=False)
+      from kungfu._utils import map_maybe
+      return map_maybe(hvd_all_reduce, ts)
   else:
     print('Not using NCCL')
     from kungfu.tensorflow.ops import group_all_reduce
