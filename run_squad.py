@@ -1177,6 +1177,11 @@ def get_cluster_size():
     return current_cluster_size()
 
 def main(_):
+  if os.getenv('USE_HOROVOD'):
+    print('using HOROVOD')
+    import horovod.tensorflow as hvd
+    hvd.init()
+
   tf.logging.set_verbosity(tf.logging.INFO)
 
   bert_config = modeling.BertConfig.from_json_file(FLAGS.bert_config_file)
@@ -1200,7 +1205,6 @@ def main(_):
   if os.getenv('USE_HOROVOD'):
     print('using HOROVOD')
     import horovod.tensorflow as hvd
-    hvd.init()
     config = tf.ConfigProto()
     config.gpu_options.allow_growth = True
     config.gpu_options.visible_device_list = str(hvd.local_rank())
