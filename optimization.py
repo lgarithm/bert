@@ -38,7 +38,7 @@ def _cluster_size():
 
 
 def _group_all_reduce(ts):
-  use_nccl = False
+  kungfu_use_nccl = False
   if os.getenv('KUNGFU_USE_NCCL'):
     kungfu_use_nccl = True
 
