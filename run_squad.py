@@ -1177,6 +1177,8 @@ def get_cluster_size():
     return current_cluster_size()
 
 def main(_):
+  print('USE_HOROVOD: %s' % (os.getenv('USE_HOROVOD')))
+
   if os.getenv('USE_HOROVOD'):
     print('using HOROVOD')
     import horovod.tensorflow as hvd
