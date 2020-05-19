@@ -18,10 +18,44 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import os
 import re
 import tensorflow as tf
-from kungfu._utils import map_maybe
-from kungfu.tensorflow.ops import all_reduce, group_all_reduce, peer_info
+
+
+def map_maybe(f, lst):
+    return [f(x) if x is not None else None for x in lst]
+
+
+def _cluster_size():
+    if os.getenv('USE_HOROVOD'):
+        import horovod.tensorflow as hvd
+        return hvd.size()
+    else:
+        from kungfu.tensorflow.ops import peer_info
+        _, num_workers = peer_info()
+        return num_workers
+
+
+def _group_all_reduce(ts):
+  kungfu_use_nccl = False
+  if os.getenv('KUNGFU_USE_NCCL'):
+    kungfu_use_nccl = True
+
+  if kungfu_use_nccl:
+    print('using NCCL')
+    from kungfu.tensorflow.ops import group_nccl_all_reduce
+    return group_nccl_all_reduce(ts)
+  elif os.getenv('USE_HOROVOD'):
+    print('using HOROVOD')
+    import horovod.tensorflow as hvd
+    def hvd_all_reduce(t):
+      return hvd.allreduce(t, average=False)
+    return map_maybe(hvd_all_reduce, ts)
+  else:
+    print('Not using NCCL')
+    from kungfu.tensorflow.ops import group_all_reduce
+    return group_all_reduce(ts)
 
 
 def create_optimizer(loss, init_lr, num_train_steps, num_warmup_steps, use_tpu, threshold):
@@ -69,7 +103,7 @@ def create_optimizer(loss, init_lr, num_train_steps, num_warmup_steps, use_tpu, 
       beta_2=0.999,
       epsilon=1e-6,
       exclude_from_weight_decay=["LayerNorm", "layer_norm", "bias"])
-  
+
   if use_tpu:
     optimizer = tf.contrib.tpu.CrossShardOptimizer(optimizer)
 
@@ -79,15 +113,16 @@ def create_optimizer(loss, init_lr, num_train_steps, num_warmup_steps, use_tpu, 
   # KungFu
   # add averaging over all gradient
   s_sgd = True
-  _, num_workers = peer_info()
+  # _, num_workers = peer_info()
+  num_workers = _cluster_size()
   np = tf.cast(num_workers, tf.float32)
   assign_ops = []
   if s_sgd: # S-SGD
-    summed_grads = group_all_reduce(grads)
+    summed_grads = _group_all_reduce(grads)
     grads = map_maybe(lambda g: g / np, summed_grads)
   else: # SMA
     alpha = 0.1
-    summed_vars = group_all_reduce(tvars)
+    summed_vars = _group_all_reduce(tvars)
     averaged_vars = [g / np for g in summed_vars]
     assign_ops = [
       tf.assign(v, (1 - alpha) * v + alpha * avg_v)

@@ -29,14 +29,14 @@ import tokenization
 import six
 from datetime import datetime
 import tensorflow as tf
-from kungfu import current_rank, current_cluster_size
-from kungfu.tensorflow.initializer import BroadcastGlobalVariablesHook
-
+#from kungfu import current_rank, current_cluster_size
+#from kungfu.tensorflow.initializer import BroadcastGlobalVariablesHook
+from perf_hook import LogPerfHook
 
 class StoppingHook(tf.train.SessionRunHook):
-  def __init__(self):
-    self._stop_step = 512
-    
+  def __init__(self, step=512):
+    self._stop_step = step
+
   def begin(self):
     self._global_step = tf.train.get_or_create_global_step()
 
@@ -49,6 +49,10 @@ class StoppingHook(tf.train.SessionRunHook):
 flags = tf.flags
 
 FLAGS = flags.FLAGS
+
+flags.DEFINE_string("tf_record_file", "/home/marcel/dataset/squad2/train.tf_record", ".")
+flags.DEFINE_integer("stop_step", 1024, ".")
+flags.DEFINE_integer("warmup_step", 10, ".")
 
 ## Required parameters
 flags.DEFINE_string(
@@ -658,8 +662,8 @@ def model_fn_builder(bert_config, init_checkpoint, learning_rate,
       init_string = ""
       if var.name in initialized_variable_names:
         init_string = ", *INIT_FROM_CKPT*"
-      tf.logging.info("  name = %s, shape = %s%s", var.name, var.shape,
-                      init_string)
+      #tf.logging.info("  name = %s, shape = %s%s", var.name, var.shape,
+      #                init_string)
 
     output_spec = None
     if mode == tf.estimator.ModeKeys.TRAIN:
@@ -690,12 +694,16 @@ def model_fn_builder(bert_config, init_checkpoint, learning_rate,
       global_step = tf.train.get_or_create_global_step()
       logging_hook = tf.train.LoggingTensorHook({"global_step" : global_step}, every_n_iter=50)
 
+      # LG
+      stopping_hook = StoppingHook(FLAGS.stop_step)
+      log_perf_hook = LogPerfHook(FLAGS.train_batch_size, FLAGS.warmup_step)
+
       output_spec = tf.contrib.tpu.TPUEstimatorSpec(
           mode=mode,
           loss=total_loss,
           train_op=train_op,
           scaffold_fn=scaffold_fn,
-          training_hooks = [logging_hook])
+          training_hooks = [logging_hook, stopping_hook, log_perf_hook])
     elif mode == tf.estimator.ModeKeys.PREDICT:
       predictions = {
           "unique_ids": unique_ids,
@@ -1152,7 +1160,32 @@ def validate_flags_or_throw(bert_config):
         "(%d) + 3" % (FLAGS.max_seq_length, FLAGS.max_query_length))
 
 
+def get_rank():
+  if os.getenv('USE_HOROVOD'):
+    import horovod.tensorflow as hvd
+    return hvd.rank()
+  else:
+    from kungfu import current_rank
+    return current_rank()
+
+def get_cluster_size():
+  if os.getenv('USE_HOROVOD'):
+    import horovod.tensorflow as hvd
+    return hvd.size()
+  else:
+    from kungfu import current_cluster_size
+    return current_cluster_size()
+
 def main(_):
+  print('USE_HOROVOD: %s' % (os.getenv('USE_HOROVOD')))
+
+  if os.getenv('USE_HOROVOD'):
+    print('using HOROVOD')
+    import horovod.tensorflow as hvd
+    hvd.init()
+  else:
+    print('using KungFu')
+
   tf.logging.set_verbosity(tf.logging.INFO)
 
   bert_config = modeling.BertConfig.from_json_file(FLAGS.bert_config_file)
@@ -1161,7 +1194,7 @@ def main(_):
 
   # KungFu
   # use individual output_dir for each process
-  FLAGS.output_dir = os.path.join(FLAGS.output_dir, "p" + str(current_rank()))
+  FLAGS.output_dir = os.path.join(FLAGS.output_dir, "p" + str(get_rank()))
 
   tf.gfile.MakeDirs(FLAGS.output_dir)
 
@@ -1172,6 +1205,19 @@ def main(_):
   if FLAGS.use_tpu and FLAGS.tpu_name:
     tpu_cluster_resolver = tf.contrib.cluster_resolver.TPUClusterResolver(
         FLAGS.tpu_name, zone=FLAGS.tpu_zone, project=FLAGS.gcp_project)
+
+  if os.getenv('USE_HOROVOD'):
+    print('using HOROVOD')
+    import horovod.tensorflow as hvd
+    config = tf.ConfigProto()
+    config.gpu_options.allow_growth = True
+    config.gpu_options.visible_device_list = str(hvd.local_rank())
+    print(config)
+  else:
+    from kungfu.ext import _get_cuda_index
+    config = tf.ConfigProto()
+    config.gpu_options.allow_growth = True
+    config.gpu_options.visible_device_list = str(_get_cuda_index())
 
   is_per_host = tf.contrib.tpu.InputPipelineConfig.PER_HOST_V2
   run_config = tf.contrib.tpu.RunConfig(
@@ -1184,7 +1230,8 @@ def main(_):
       tpu_config=tf.contrib.tpu.TPUConfig(
           iterations_per_loop=FLAGS.iterations_per_loop,
           num_shards=FLAGS.num_tpu_cores,
-          per_host_input_for_training=is_per_host))
+          per_host_input_for_training=is_per_host),
+          session_config=config)
 
   train_examples = None
   num_train_steps = None
@@ -1199,7 +1246,7 @@ def main(_):
     num_train_steps = int(
         len(train_examples) / FLAGS.train_batch_size * FLAGS.num_train_epochs)
     # KungFu
-    num_train_steps = num_train_steps // current_cluster_size()
+    num_train_steps = num_train_steps // get_cluster_size()
     num_warmup_steps = int(num_train_steps * FLAGS.warmup_proportion)
 
   model_fn = model_fn_builder(
@@ -1243,19 +1290,24 @@ def main(_):
     tf.logging.info("  Num steps = %d", num_train_steps)
     del train_examples
 
-    input_file = "/home/marcel/dataset/squad2/train.tf_record"
     train_input_fn = input_fn_builder(
-        input_file=input_file,
+        input_file=FLAGS.tf_record_file,
         seq_length=FLAGS.max_seq_length,
         is_training=True,
         drop_remainder=True)
 
     # KungFu
     # add hook so that all nodes the training with equal variables
-    hooks = [BroadcastGlobalVariablesHook()]
+    try:
+        from kungfu.tensorflow.initializer import BroadcastGlobalVariablesHook
+        hooks = [BroadcastGlobalVariablesHook()]
+    except:
+        hooks = []
 
+    print('BEGIN estimator.train')
     estimator.train(input_fn=train_input_fn, max_steps=num_train_steps, hooks=hooks)
-    
+    print('END estimator.train')
+
     # KungFu
     # log end time
     tf.logging.info("Training end time " + str(datetime.now()))
@@ -1316,14 +1368,17 @@ def main(_):
     output_nbest_file = os.path.join(FLAGS.output_dir, "nbest_predictions.json")
     output_null_log_odds_file = os.path.join(FLAGS.output_dir, "null_odds.json")
 
+    print('BEGIN write_predictions')
     write_predictions(eval_examples, eval_features, all_results,
                       FLAGS.n_best_size, FLAGS.max_answer_length,
                       FLAGS.do_lower_case, output_prediction_file,
                       output_nbest_file, output_null_log_odds_file)
-
+    print('END write_predictions')
+  print('END main')
 
 if __name__ == "__main__":
   flags.mark_flag_as_required("vocab_file")
   flags.mark_flag_as_required("bert_config_file")
   flags.mark_flag_as_required("output_dir")
   tf.app.run()
+  # print('END app.run')
