@@ -1181,6 +1181,8 @@ def main(_):
     print('using HOROVOD')
     import horovod.tensorflow as hvd
     hvd.init()
+  else:
+    print('using KungFu')
 
   tf.logging.set_verbosity(tf.logging.INFO)
 
