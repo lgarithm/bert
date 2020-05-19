@@ -43,6 +43,7 @@ class LogPerfHook(tf.train.SessionRunHook):
         durations = durations[:len(durations) - self._drop_last]
         ds = np.array(durations)
         mean_duration = ds.mean()
+        print('mean_duration: %.3fs' % (mean_duration))
         step_per_sec = 1 / mean_duration
         sample_per_sec = step_per_sec * self._batch_size
         print('FINAL RESULT: %.2f samples / sec, batch size: %d, cluster size %d' %
