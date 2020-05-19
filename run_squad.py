@@ -29,8 +29,8 @@ import tokenization
 import six
 from datetime import datetime
 import tensorflow as tf
-from kungfu import current_rank, current_cluster_size
-from kungfu.tensorflow.initializer import BroadcastGlobalVariablesHook
+#from kungfu import current_rank, current_cluster_size
+#from kungfu.tensorflow.initializer import BroadcastGlobalVariablesHook
 from perf_hook import LogPerfHook
 
 class StoppingHook(tf.train.SessionRunHook):
@@ -1160,6 +1160,22 @@ def validate_flags_or_throw(bert_config):
         "(%d) + 3" % (FLAGS.max_seq_length, FLAGS.max_query_length))
 
 
+def get_rank():
+  if os.getenv('USE_HOROVOD'):
+    import horovod.tensorflow as hvd
+    return hvd.rank()
+  else:
+    from kungfu import current_rank
+    return current_rank()
+
+def get_cluster_size():
+  if os.getenv('USE_HOROVOD'):
+    import horovod.tensorflow as hvd
+    return hvd.size()
+  else:
+    from kungfu import current_cluster_size
+    return current_cluster_size()
+
 def main(_):
   tf.logging.set_verbosity(tf.logging.INFO)
 
@@ -1169,7 +1185,7 @@ def main(_):
 
   # KungFu
   # use individual output_dir for each process
-  FLAGS.output_dir = os.path.join(FLAGS.output_dir, "p" + str(current_rank()))
+  FLAGS.output_dir = os.path.join(FLAGS.output_dir, "p" + str(get_rank()))
 
   tf.gfile.MakeDirs(FLAGS.output_dir)
 
@@ -1219,7 +1235,7 @@ def main(_):
     num_train_steps = int(
         len(train_examples) / FLAGS.train_batch_size * FLAGS.num_train_epochs)
     # KungFu
-    num_train_steps = num_train_steps // current_cluster_size()
+    num_train_steps = num_train_steps // get_cluster_size()
     num_warmup_steps = int(num_train_steps * FLAGS.warmup_proportion)
 
   model_fn = model_fn_builder(
@@ -1271,7 +1287,11 @@ def main(_):
 
     # KungFu
     # add hook so that all nodes the training with equal variables
-    hooks = [BroadcastGlobalVariablesHook()]
+    try:
+        from kungfu.tensorflow.initializer import BroadcastGlobalVariablesHook
+        hooks = [BroadcastGlobalVariablesHook()]
+    except:
+        hooks = []
 
     print('BEGIN estimator.train')
     estimator.train(input_fn=train_input_fn, max_steps=num_train_steps, hooks=hooks)

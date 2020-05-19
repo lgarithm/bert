@@ -26,8 +26,6 @@ import modeling
 import optimization
 import tokenization
 import tensorflow as tf
-from kungfu import current_rank, current_cluster_size, run_barrier
-from kungfu.tensorflow.initializer import BroadcastGlobalVariablesHook
 
 flags = tf.flags
 
@@ -853,8 +851,8 @@ def main(_):
 
     # KungFu
     # reduce the number of training steps for each worker
-    num_train_steps = num_train_steps // current_cluster_size()
-    num_warmup_steps = num_warmup_steps // current_cluster_size()
+    num_train_steps = num_train_steps // get_cluster_size()
+    num_warmup_steps = num_warmup_steps // get_cluster_size()
     # shuffle train examples for each worker differently
     rng = random.Random(current_rank())
     rng.shuffle(train_examples)
@@ -898,7 +896,7 @@ def main(_):
     estimator.train(input_fn=train_input_fn, max_steps=num_train_steps, hooks=[BroadcastGlobalVariablesHook()])
 
     # KungFu
-    run_barrier()
+    # run_barrier()
 
   if FLAGS.do_eval:
     eval_examples = processor.get_dev_examples(FLAGS.data_dir)
