@@ -1214,7 +1214,10 @@ def main(_):
     config.gpu_options.visible_device_list = str(hvd.local_rank())
     print(config)
   else:
-    config = None
+    from kungfu.ext import _get_cuda_index
+    config = tf.ConfigProto()
+    config.gpu_options.allow_growth = True
+    config.gpu_options.visible_device_list = str(_get_cuda_index())
 
   is_per_host = tf.contrib.tpu.InputPipelineConfig.PER_HOST_V2
   run_config = tf.contrib.tpu.RunConfig(
