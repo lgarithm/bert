@@ -3,12 +3,15 @@
 export TF_CPP_MIN_LOG_LEVEL=3
 export KUNGFU_CONFIG_LOG_LEVEL=INFO # DEBUG | INFO | WARN | ERROR
 
-KUNGFU_RUN=$HOME/KungFu/bin/kungfu-run
+# KUNGFU_RUN=$HOME/KungFu/bin/kungfu-run
+KUNGFU_RUN=$PWD/bin/kungfu-run
+KUNGFU_CONFIG_SERVER=$PWD/bin/kungfu-config-server-example
+
 BERT_BASE_DIR=$HOME/bert/uncased_L-12_H-768_A-12
 SQUAD_DIR=$HOME/dataset/squad2
 OUTPUT_DIR=tmp
 
-$HOME/KungFu/bin/kungfu-config-server-example \
+$KUNGFU_CONFIG_SERVER \
     -init init_workers.json &
 
 $KUNGFU_RUN \
@@ -35,4 +38,3 @@ $KUNGFU_RUN \
                 --num_train_epochs=2.0
 
 pkill -P $$
-
