@@ -32,6 +32,7 @@ from kungfu.tensorflow.policy import PolicyHook
 import modeling
 import optimization
 import tokenization
+from kungfu_adaptive_scaling_policy import AdaptiveScalingPolicy
 from kungfu_scaling_policy import ScalingPolicy
 from kungfu_scheduled_scaling_policy import ScheduledScalingPolicy
 
@@ -1321,14 +1322,19 @@ def main(_):
     # add hook so that all nodes the training with equal variables
     # policy = ScalingPolicy(FLAGS.train_batch_size, num_train_steps,
     #     800, 1/3, "scaling_workers.json", "127.0.0.1:9100")
-    schedule = {
-      20: 1,
-      40: 2,
-      60: 3,
-      80: 4,
-      100: 2,
-    }
-    policy = ScheduledScalingPolicy(schedule)
+
+    # Policy 1
+    # schedule = {
+    #   20: 1,
+    #   40: 2,
+    #   60: 3,
+    #   80: 4,
+    #   100: 2,
+    # }
+    # policy = ScheduledScalingPolicy(schedule)
+
+    # Policy 2
+    policy = AdaptiveScalingPolicy(FLAGS.train_batch_size, max_workers=4, num_steps=num_train_steps, change_step=50, alpha=0.33)
     hooks=[
         # ElasticHook(FLAGS.train_batch_size, FLAGS.num_train_epochs, num_train_examples),
         # PolicyHook([policy], FLAGS.train_batch_size, num_train_examples),
