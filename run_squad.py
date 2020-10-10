@@ -26,12 +26,14 @@ from datetime import datetime
 import six
 import tensorflow as tf
 from kungfu.tensorflow.experimental.hook import ElasticHook
-from kungfu.tensorflow.policy import PoliciesHook
+# from kungfu.tensorflow.policy import PoliciesHook
+from kungfu.tensorflow.policy import PolicyHook
 
 import modeling
 import optimization
 import tokenization
 from kungfu_scaling_policy import ScalingPolicy
+from kungfu_scheduled_scaling_policy import ScheduledScalingPolicy
 
 flags = tf.flags
 
@@ -1317,10 +1319,21 @@ def main(_):
 
     # KungFu
     # add hook so that all nodes the training with equal variables
-    policy = ScalingPolicy(FLAGS.train_batch_size, num_train_steps,
-        800, 1/3, "scaling_workers.json", "127.0.0.1:9100")
-    hooks=[ElasticHook(FLAGS.train_batch_size, FLAGS.num_train_epochs, num_train_examples),
-        PoliciesHook([policy], FLAGS.train_batch_size, num_train_examples)]
+    # policy = ScalingPolicy(FLAGS.train_batch_size, num_train_steps,
+    #     800, 1/3, "scaling_workers.json", "127.0.0.1:9100")
+    schedule = {
+      20: 1,
+      40: 2,
+      60: 3,
+      80: 4,
+      100: 2,
+    }
+    policy = ScheduledScalingPolicy(schedule)
+    hooks=[
+        # ElasticHook(FLAGS.train_batch_size, FLAGS.num_train_epochs, num_train_examples),
+        # PolicyHook([policy], FLAGS.train_batch_size, num_train_examples),
+        PolicyHook([policy], num_train_examples, FLAGS.num_train_epochs, FLAGS.train_batch_size),
+      ]
 
     estimator.train(input_fn=train_input_fn, max_steps=num_train_steps, hooks=hooks)
 
