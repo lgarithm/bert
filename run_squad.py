@@ -14,24 +14,24 @@
 # limitations under the License.
 """Run BERT on SQuAD 1.1 and SQuAD 2.0."""
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
+from __future__ import absolute_import, division, print_function
 
 import collections
 import json
 import math
 import os
 import random
-import modeling
-import optimization
-import tokenization
+from datetime import datetime
+
 import six
 import tensorflow as tf
 from kungfu.tensorflow.experimental.hook import ElasticHook
-from kungfu.tensorflow.policy import ScalingPolicy, PoliciesHook
-from datetime import datetime
+from kungfu.tensorflow.policy import PoliciesHook
 
+import modeling
+import optimization
+import tokenization
+from kungfu_scaling_policy import ScalingPolicy
 
 flags = tf.flags
 
@@ -1258,7 +1258,7 @@ def main(_):
     # KungFu
     # log start time
     tf.logging.info("Training start time " + str(datetime.now()))
-    
+
     train_examples = read_squad_examples(
         input_file=FLAGS.train_file, is_training=True)
     num_train_steps = int(
@@ -1323,7 +1323,7 @@ def main(_):
         PoliciesHook([policy], FLAGS.train_batch_size, num_train_examples)]
 
     estimator.train(input_fn=train_input_fn, max_steps=num_train_steps, hooks=hooks)
-    
+
     # log end time
     tf.logging.info("Training end time " + str(datetime.now()))
 

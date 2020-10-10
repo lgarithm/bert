@@ -1,22 +1,22 @@
 #!/bin/bash
 set -e
 
-ensure_file(){
+ensure_file() {
     local filename=$(basename $1)
     if [ ! -f $filename ]; then
         curl -sLOJ $1
     fi
 }
 
-download_bert(){
+download_bert() {
     mkdir -p $HOME/bert/uncased_L-12_H-768_A-12
     pushd $HOME/bert/uncased_L-12_H-768_A-12
     ensure_file https://storage.googleapis.com/bert_models/2020_02_20/uncased_L-12_H-768_A-12.zip
-    unzip uncased_L-12_H-768_A-12.zip
+    unzip -f uncased_L-12_H-768_A-12.zip
     popd
 }
 
-download_squad2(){
+download_squad2() {
     mkdir -p $HOME/dataset/squad2
     pushd $HOME/dataset/squad2
     ensure_file https://rajpurkar.github.io/SQuAD-explorer/dataset/train-v2.0.json
@@ -25,6 +25,6 @@ download_squad2(){
     popd
 }
 
-
 download_bert
 download_squad2
+echo "$0 done"
